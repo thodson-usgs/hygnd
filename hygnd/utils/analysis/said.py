@@ -1,9 +1,9 @@
 import os
 
 # move some of these dicts over into said.py
-from usgs_tools.datasets.codes import said_sites, nwis_to_said, said_files 
+from hygnd.datasets.codes import said_sites, nwis_to_said, said_files 
 
-from usgs_tools.portals.nwis import *# import get_records and to_str
+from hygnd.portals.nwis import *# import get_records and to_str
 
 from linearmodel.datamanager import DataManager
 
