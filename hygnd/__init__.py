@@ -1,4 +1,4 @@
-from usgs_tools.core import *
+from hygnd.core import *
 
 import pandas as pd
 import requests

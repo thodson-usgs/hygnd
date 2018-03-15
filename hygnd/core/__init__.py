@@ -1,4 +1,4 @@
-from usgs_tools.portals import nwis
+from hygnd.portals import nwis
 from pandas import HDFStore, DataFrame
 
 
