@@ -1,4 +1,4 @@
-from hygnd.portals import nwis
+from hygnd.dataretrieval import nwis
 from pandas import HDFStore, DataFrame
 
 

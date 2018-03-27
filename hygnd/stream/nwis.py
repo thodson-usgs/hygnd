@@ -3,32 +3,39 @@ import requests
 from io import StringIO
 import numpy as np
 import re
+from hygnd.munge import update_merge
+from hygnd.core import to_str
+
 
 NWIS_URL = 'https://waterservices.usgs.gov/nwis/iv/'
 QWDATA_URL =  'https://nwis.waterdata.usgs.gov/nwis/qwdata?'
 
-code_lookup = {
-    'discharge':'00060',
-    'temperature':'00010',
-    'nitrate':'99133',
-    'turbidity':'63680'
+tz = {
+    'CST':'-0600',
+    'EST':'-0500'
 }
-###############################################################################
+
 def rdb_to_df(url, params=None):
-    """ Get rdb table and return dataframe
+    """ Convert NWIS rdb table into a dataframe.
     
     Args:
-          url (string): Base url 
+          url (string):  Base yrk
           params: Parameters for REST request
           
     See https://waterdata.usgs.gov/nwis?automated_retrieval_info
     """
-    req = requests.get(url, params=params)
-    #XXX
-    count = 0
+    try:
     
-    #print(req.url)
+        req = requests.get(url, params=params)
+    
+    except ConnectionError:
+    
+        print('could not connect to {}'.format(req.url))
+    
     rdb = req.text
+              
+    count = 0
+              
     for line in rdb.splitlines():
         # ignore comment lines
         if line.startswith('#'):
@@ -45,67 +52,13 @@ def rdb_to_df(url, params=None):
         
     return df 
 
-###############################################################################
-def get_record(sites, start=None, end=None, param_cds=None, *args):
-    """Pull hydrographic records from NWIS and return as dataframe.
 
-    Uses requests and rdb_to_df to request and format an rdb timeseries from NWIS
-    
-    Args:
-        site (string): X digit USGS site ID. 05586300
-        start: 2018-01-25
-        end:
-        args: list of data fields
-
-    Returns:
-        Return an object containing the gage record
-        
-    """ 
-    #sites = to_str(sites)
-    
-    df = pd.DataFrame()
-    payload = {'format':'rdb' } 
-    
-    if start: payload['startDT'] = start
-    if end:   payload['endDT']   = end
-        
-    if param_cds: 
-        payload['parameterCd'] = to_str(param_cds)
-   
-    #XXX Temp
-    payload['sites'] = sites
-    df = rdb_to_df(NWIS_URL, payload)
-    return df
-    #df['datetime'] = pd.to_datetime(df['datetime'])  
-    #
-    #if type(sites) == str: 
-    #    sites = [sites]  
-    #    for site in sites: 
-    #        payload['sites'] = site
-    #    temp_df = rdb_to_df(NWIS_URL, payload)
-    #    temp_df['datetime'] = pd.to_datetime(df['datetime'])
-    #df.set_index(['site_no','datetime'], inplace=True)
-    
-    return df 
-#####
-#XXX: I think we can delete this one 3/12/18
-def foo(df):
-    """Take an rdb and reformat column names
-    """
-    columns = df.columns.tolist()
-    index     = columns[:4]
-    param_cds = [i[6:] for i in param_cds[4:]]
-    
-    ###XXX BAD
-    for cd in param_cds:
-        if param_cds.count(cd) > 1: #if code occurs more than once
-            indices = [j for j, x in enumerate(test) if x == i]
-            test[indices[1]] = test[indices[1]] +'_b'
-            
-###############################################################################
+#TODO: move this to core module.
 def to_str(listlike):
-    """
-    XXX Move this to core module 
+    """Translates list-like objects into strings.
+    
+    Return:
+        List-like object as string
     """
     if type(listlike) == list:
         return ','.join(listlike)
@@ -116,7 +69,8 @@ def to_str(listlike):
     elif type(listlike) == str:
         return listlike
     
-###############################################################################
+
+#need to acount for time zones
 def get_samples(sites=None, state_cd=None,
                   start=None, end=None, *args):
     """Pull water quality sample data from NWIS and return as dataframe.
@@ -136,6 +90,7 @@ def get_samples(sites=None, state_cd=None,
                'radio_parm_cds':'all_parm_cds', 'rdb_qw_attributes':'expanded',
                'date_format':'YYYY-MM-DD', 'rdb_compression':'value',
                'submmitted_form':'brief_list', 'qw_sample_wide':'separated_wide'}
+    #payload = {'format':'rdb','date_format':'YYYY-MM-DD'}
     
     # check for sites and state_cd, and if list-like, convert them to strings/freq
     
@@ -153,14 +108,17 @@ def get_samples(sites=None, state_cd=None,
     if end: payload['end_date'] = end
         
     df = rdb_to_df(QWDATA_URL, payload) 
+    df['sample_start_time_datum_cd'] = df['sample_start_time_datum_cd'].map(tz)
+    
     df['datetime'] = pd.to_datetime(df.pop('sample_dt') + ' ' +
-                                    df.pop('sample_tm'),
+                                    df.pop('sample_tm') + ' ' + df.pop('sample_start_time_datum_cd'), 
                                     format = '%Y-%m-%d %H:%M')
     #df.set_index(['site_no','datetime'], inplace=True)
     
     return df 
 
-def site_desc(sites):
+
+def get_site_desc(sites):
     """
     Get site description information from NWIS
     """
@@ -175,9 +133,8 @@ def site_desc(sites):
     return df
 
 
-def param_cds():
-    """
-    """
+def get_all_param_cds():
+    """Return a DataFrame containing all NWIS parameter codes."""
  
     url = 'https://nwis.waterdata.usgs.gov/nwis/pmcodes?radio_pm_search=param_group&pm_group=All+--+include+all+parameter+groups&pm_search=&casrn_search=&srsname_search=&format=rdb&show=parameter_group_nm&show=parameter_nm&show=casrn&show=srsname&show=parameter_units'
     
@@ -185,30 +142,39 @@ def param_cds():
     #df.set_index(['parameter_cd'], inplace=True)
     
     return df
-###############################################################################
 
-#XXX
-def get_records(sites, start, end, *args):
+
+def get_records(sites, start, end, service='iv', *args):
     """
     Args:
     
     Return:
     """
-    json = get_gage_json(sites, start, end, *args)
-    record_df = parse_gage_json(json)
+    if service == 'iv' or service =='dv':
+        json = get_json_record(sites, start, end, service=service, *args)
+        record_df = parse_gage_json(json)
+    
+    #if service == 'dv'
+    
+    elif service == 'qwdata':
+        record_df = get_samples(sites, start=start, end=end)
+    
+    elif service == 'site':
+        record_df = get_site_desc(sites)
+    
+    else:
+        print('A record for site {} was not found in service {}'.format(site,service))
+        return
     
     return record_df
 
-def sample_gage_record():
-    
-    return get_gage_json('05586300','2016-10-1','2017-9-30','nitrate','temperature')
 
-def get_gage_json(sites, start=None, end=None, params=None, freq=None, *args, **kwargs):
-    """Function to get gage data
+def get_json_record(sites, start=None, end=None, params=None, service='iv', *args, **kwargs):
+    """Request 
 
     Args:
-        site (string): X digit USGS site ID. 05586300
-        start: 2018-01-25
+        site (string): USGS site number, e.g., 05586300.
+        start (string): 2018-01-25
         end:
         kwargs: any additional parameter codes, namely 'parameterCD'
 
@@ -223,7 +189,7 @@ def get_gage_json(sites, start=None, end=None, params=None, freq=None, *args, **
     url = 'https://waterservices.usgs.gov/nwis/iv/'
     
     # if daily values were requested
-    if freq=='dv':
+    if service=='dv':
         url = re.sub('iv/$','dv/$', url)
     
     sites = to_str(sites)
@@ -245,26 +211,26 @@ def get_gage_json(sites, start=None, end=None, params=None, freq=None, *args, **
    
     req = requests.get(url, params=payload)
     req.raise_for_status()
-    print(req.url)
+    #print(req.url)
     return req.json()
 
 
 def parse_gage_json(json):
-    """Parses an NWIS json into a pandas DataFrame
+    """Parses an NWIS formated json into a pandas DataFrame
     
     Args:
         json (dict)
     
+    Returns:
+        DataFrame containing times series data from the NWIS json.
     """
-    
-    df = pd.DataFrame( columns=['datetime','site_no'] )
-    #import ipdb; ipdb.set_trace()
+    # loop through each timeseries in the json
     for timeseries in json['value']['timeSeries']:
-        #get site_no associated with timeseries
+        
         site_no = timeseries['sourceInfo']['siteCode'][0]['value']
         param_cd = timeseries['variable']['variableCode'][0]['value']
        
-        # loop through each parameter in timeseries. This is mainly relevant to turbidity
+        # loop through each parameter in timeseries.
         for parameter in timeseries['values']:
             col_name = param_cd
             
@@ -279,6 +245,7 @@ def parse_gage_json(json):
                 continue
                 
             record_json = str(record_json).replace("'",'"')
+            
             # read json, converting all values to float64 and all qaulifiers
             # to str. Lists can't be hashed, thus we cannot df.merge on a list column
             record_df   = pd.read_json(record_json, orient='records',
@@ -286,17 +253,25 @@ def parse_gage_json(json):
                                               'qualifiers':'unicode'})
             
             record_df['qualifiers'] = record_df['qualifiers'].str.replace("'","").str.strip("[").str.strip("]")
-            
+            #return record_df
+  
             record_df.rename(columns={'value':col_name,
                                       'dateTime':'datetime',
                                       'qualifiers':col_name + '_cd'}, inplace=True)
+    
+            #record_df.rename(columns={'dateTime':'datetime'}, inplace=True)
             record_df['site_no'] = site_no
-            #return record_df
-            #proper update procedure
-            df = update_merge(df, record_df, on=['datetime','site_no'],
-                              up=[col_name, col_cd_name])
+            record_df.set_index(['site_no','datetime'], inplace=True)
+            #record_df.rename(columns={'value':(col_name,'val'),'qualifiers':(col_name,'cd') }, inplace=True)
             
-    return df
+            #return record_df
+            try:
+                merged_df = update_merge(merged_df, record_df)
+            except NameError:
+                merged_df = record_df
+            
+    return merged_df
+
 
 # XXX This entire function should be merged into the get json
 def get_latest(sites=None, state=None):
@@ -320,21 +295,8 @@ def get_latest(sites=None, state=None):
 
     return req.json()
 
-def update_merge(left, right, on, up):
-    """Performs a combination 
-    Args:
-    left,right - df
-    on -list
-    up -list
-    """
-    df = left.merge(right, how='outer', on=on) 
+
+def sample_gage_record():
+    """Gets a sample gage record for testing purposes."""
     
-    # for columns in up
-    for c in up:
-        if c in left.columns:
-            #print(c)
-            df[c] = df[c+'_y'].fillna(df[c+'_x'])
-            df[c] = df[c+'_y'].fillna(df[c+'_x'])
-            df.drop([c + '_x', c+ '_y'], axis=1, inplace=True)
-    
-    return df
+    return get_records('05586300','2016-10-1','2017-9-30')

@@ -20,6 +20,10 @@ def get_samples(site, usgs=True):
             'sorted':'no'}
     
     req = requests.get(url, params=payload)
+    
+    if not req:
+        #sleep
+        #request again
     #return req.url
     df = pd.read_csv(StringIO(req.text),delimiter=',')
     
@@ -33,33 +37,3 @@ def get_samples(site, usgs=True):
     df.set_index(['site_no','datetime'], inplace=True)
     #df.set_index(['site_no','datetime'], inplace=True)
     return df
- 
-
-
-class NWISClient():
-    
-    def get_samples(siteid,start,end, params=[]):
-        """
-        Args:
-          site (string): X digit USGS site ID. USGS-05586300
-          start: 2018-01-25
-          end:
-          params: One or more five-digit USGS parameter codes
-        """
-        url = 'https://nwis.waterdata.usgs.gov/nwis/qwdata?'
-        
-        payload = {'sites':siteid, 'startDateLo':start, 'startDateHi':end, 
-               'mimeType':'csv', 'pCode':'params'} 
-        pass
-    def get_record():
-        pass
-    
-    def make_HDF():
-        pass
-    
-    def append_HDF():
-        pass
-    
-    def update_HDF():
-        pass
-        
