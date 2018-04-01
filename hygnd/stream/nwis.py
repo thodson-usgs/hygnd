@@ -4,12 +4,12 @@ from io import StringIO
 import numpy as np
 import re
 from hygnd.munge import update_merge
-from hygnd.core import to_str
 
 
 NWIS_URL = 'https://waterservices.usgs.gov/nwis/iv/'
 QWDATA_URL =  'https://nwis.waterdata.usgs.gov/nwis/qwdata?'
 
+#XXX: need to deal with all timezones
 tz = {
     'CST':'-0600',
     'EST':'-0500'
@@ -33,6 +33,10 @@ def rdb_to_df(url, params=None):
         print('could not connect to {}'.format(req.url))
     
     rdb = req.text
+    #return rdb
+    if rdb.startswith('No sites/data'):
+        return None
+    #return None
               
     count = 0
               
@@ -72,11 +76,11 @@ def to_str(listlike):
 
 #need to acount for time zones
 def get_samples(sites=None, state_cd=None,
-                  start=None, end=None, *args):
+                  start=None, end=None, multi_index=False, *args):
     """Pull water quality sample data from NWIS and return as dataframe.
     
     Args:
-      site (string): X digit USGS site ID. USGS-05586300
+      site (string): X digit USGS site ID. USGS-05586300/
       start: 2018-01-25
       end:
     """
@@ -107,12 +111,20 @@ def get_samples(sites=None, state_cd=None,
     
     if end: payload['end_date'] = end
         
-    df = rdb_to_df(QWDATA_URL, payload) 
+    df = rdb_to_df(QWDATA_URL, payload)
+    
+    if type(df) == type(None):
+        return None 
+
     df['sample_start_time_datum_cd'] = df['sample_start_time_datum_cd'].map(tz)
     
     df['datetime'] = pd.to_datetime(df.pop('sample_dt') + ' ' +
                                     df.pop('sample_tm') + ' ' + df.pop('sample_start_time_datum_cd'), 
                                     format = '%Y-%m-%d %H:%M')
+    if multi_index == True:
+        df.set_index(['site_no','datetime'], inplace=True)
+    else:
+        df.set_index('datetime', inplace=True)
     #df.set_index(['site_no','datetime'], inplace=True)
     
     return df 
@@ -144,7 +156,7 @@ def get_all_param_cds():
     return df
 
 
-def get_records(sites, start, end, service='iv', *args):
+def get_records(sites, start=None, end=None, service='iv', *args):
     """
     Args:
     
@@ -215,7 +227,7 @@ def get_json_record(sites, start=None, end=None, params=None, service='iv', *arg
     return req.json()
 
 
-def parse_gage_json(json):
+def parse_gage_json(json, multi_index=False):
     """Parses an NWIS formated json into a pandas DataFrame
     
     Args:
@@ -233,9 +245,13 @@ def parse_gage_json(json):
         # loop through each parameter in timeseries.
         for parameter in timeseries['values']:
             col_name = param_cd
+            method =  parameter['method'][0]['methodDescription']
             
-            if len(timeseries['values']) > 1:
-                   col_name = col_name + parameter['method'][0]['methodDescription']
+            #if len(timeseries['values']) > 1 and method:
+            if method:
+                # get method, format it, and append to column name
+                method = method.strip("[]()").lower()
+                col_name = '{}_{}'.format(col_name, method)
             
             col_cd_name = col_name + '_cd'
             record_json = parameter['value']  
@@ -252,7 +268,7 @@ def parse_gage_json(json):
                                        dtype={'value':'float64',
                                               'qualifiers':'unicode'})
             
-            record_df['qualifiers'] = record_df['qualifiers'].str.replace("'","").str.strip("[").str.strip("]")
+            record_df['qualifiers'] = record_df['qualifiers'].str.replace("'","").str.strip("[]")
             #return record_df
   
             record_df.rename(columns={'value':col_name,
@@ -261,7 +277,11 @@ def parse_gage_json(json):
     
             #record_df.rename(columns={'dateTime':'datetime'}, inplace=True)
             record_df['site_no'] = site_no
-            record_df.set_index(['site_no','datetime'], inplace=True)
+            if multi_index:
+                record_df.set_index(['site_no','datetime'], inplace=True)
+            else:
+                record_df.set_index(['datetime'], inplace=True)
+                
             #record_df.rename(columns={'value':(col_name,'val'),'qualifiers':(col_name,'cd') }, inplace=True)
             
             #return record_df
