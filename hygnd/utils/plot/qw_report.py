@@ -5,6 +5,7 @@ from linearmodel.datamanager import DataManager
 from hygnd.datasets.codes import pc
 from hygnd.munge import update_merge
 import os
+import numpy as np
 #MARK_SIZE = 3 # not used
 
 def gen_report(store, site):
@@ -35,7 +36,7 @@ def gen_report(store, site):
     df.to_csv('model_data/{}_ssc.csv'.format(site['name']))
     
     #write ssc model report
-    reportfile = 'report/{}_ssc_report.txt'
+    reportfile = 'report/{}_ssc_report.txt'.format(site['name'])
     with open(reportfile, 'w') as f:
         f.write(ssc_model.get_model_report().as_text())
     
@@ -99,12 +100,6 @@ def ssc_plot(con_data, sur_data, filename=None, return_model=False, title=None):
     fig, (ax1, ax2, ax3) = plt.subplots(3, sharex=True, figsize=(15,10))
     fig.subplots_adjust(hspace=0.15)
     
-import matplotlib.ticker as tkr
-import matplotlib.pyplot as plt
-from said.surrogatemodel import SurrogateRatingModel
-from linearmodel.datamanager import DataManager
-from hygnd.datasets.codes import pc
-#MARK_SIZE = 3 # not used
 
 def plot_model(model, filename=None, title=None):
     fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2,2, figsize=(15,8))
@@ -126,10 +121,11 @@ def make_ssc_model(con_data, sur_data):
     rating_model = SurrogateRatingModel(con_data,
                                         sur_data,
                                         constituent_variable= 'SSC',
-                                        surrogate_variables= ['Turb_YSI'], 
-                                        match_method='mean', match_time=30)
+                                        surrogate_variables= ['Turb_YSI'],#,'Discharge'], 
+                                        match_method='nearest', match_time=30)
     
     rating_model.set_surrogate_transform(['log10'], surrogate_variable='Turb_YSI')
+    #rating_model.set_surrogate_transform(['log10'], surrogate_variable='Discharge')
     rating_model.set_constituent_transform('log10')
     return rating_model
 
@@ -207,9 +203,11 @@ def nitrate_plot(con_data, sur_data, filename=None, title=None):
     ax1.plot(df.index, df.Discharge, color='cornflowerblue', label='Discharge')
     ax2.plot(df.index,df.NitrateSurr, color='green', label='Nitrate probe observation')
     ax2.plot(df2.index,df2.Nitrate, marker='o', markerfacecolor='yellow', linewidth=0, label='Nitrate sample')
-    #TODO update this plotting, add 0.5mg min error
-    u90 = 
-    ax2.fill_between(df.index, df.NitrateSurr*.9, df.NitrateSurr*1.1, facecolor='gray',
+    
+    #error is the greater of 0.5mg/L or 10% of the measurement 
+    n_error = np.maximum(0.5, df['NitrateSurr']*.1)
+
+    ax2.fill_between(df.index, df.NitrateSurr - n_error, df.NitrateSurr + n_error, facecolor='gray',
                     edgecolor='gray', alpha=0.5, #interpolate=True,
                     label='90% Prediction Interval')
     
@@ -251,20 +249,21 @@ def phos_plot(con_data, sur_data, filename=None, title=None):
                                           sur_data, 
                                           constituent_variable='TP',
                                           surrogate_variables=['OrthoP','Turb_YSI'],
-                                          match_method='mean',
+                                          match_method='nearest',
                                           match_time=120)
     
     rating_model_2 = SurrogateRatingModel(con_data,
                                           sur_data, 
                                           constituent_variable='TP',
                                           surrogate_variables=['Turb_YSI'],
-                                          match_method='mean',
+                                          match_method='nearest',
                                           match_time=30)
     
     df = sur_data.get_data()
     df2 = rating_model_1.get_model_dataset()
     df3 = rating_model_2.get_model_dataset()
 
+    #XXX bias correction true?
     predicted_data_2   = rating_model_2._model.predict_response_variable(explanatory_data=rating_model_2._surrogate_data,
                                                             raw_response=True,
                                                             bias_correction=False,
@@ -286,8 +285,18 @@ def phos_plot(con_data, sur_data, filename=None, title=None):
     
      
     ax1.plot(df.index, df['Discharge'])
-    #TODO include all obs from other models 
-    obs = rating_model_1.get_model_dataset()
+    
+    # find all non-missing and compile within a single df
+    #TODO color code obs by model
+    obs1 = rating_model_1.get_model_dataset()
+    obs2 = rating_model_2.get_model_dataset()
+    
+    obs1 = obs1[~obs1['Missing']]
+    obs2.drop(obs1.index, axis=0) #drop anything thats in obs1 from obs2
+    obs = obs1.append(obs2).sort_index()
+    
+    
+    
     plot_prediction_ts(predicted_data_1, obs, 'TP', ax2, color='maroon')
    
     load = df.Discharge * predicted_data_1['TP'] * 0.00269688566 #XXX check this, 

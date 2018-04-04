@@ -38,6 +38,9 @@ class SAIDStore(pd.HDFStore):
         
         iv = format_surrogate_df(iv)
         
+        #drop rows with only discharge
+        #check_cols = iv.columns.drop('Discharge')
+        #iv.dropna(how='all', subset=check_cols)
         #for i in [iv, qwdata]:
             # I *believe* SAID only works on single layer index, 
             # so strip site_no from index
@@ -107,6 +110,33 @@ class NWISStore(pd.HDFStore):
         #see ptrepack for better compression
         #complevel=9, complib='blosc:blosclz'
         
+    def _update_recent(self, sites):
+        """A simple update function
+        Only gets data since the last punch in the db. Doesn't check if older data
+        was updated
+        """
+        if type(sites) == 'list':
+            for site in sites:
+                self._update_recent(site)
+        else:
+            site = sites #only one site
+            for service in ['iv','dv','qwdata']:
+                
+                #print('{} {}'.format(site,service))
+                group = '/site/{}/{}'.format(site,service)
+                
+                if group not in self.keys():
+                    break
+                    
+                old_df = self.get(group)
+                last_time = old_df.iloc[-1].name.strftime('%Y-%m-%d')
+                new_df = get_records(site, start=last_time, end=None)
+                updates = new_df.index.intersection(old_df.index)
+                updated = old_df.append(new_df.loc[updates])
+                
+                self.put(group, updated, format='fixed')
+            
+            
     def _spinup_sites(self, sites, service='all', verbose=True):
         """
         Args:
