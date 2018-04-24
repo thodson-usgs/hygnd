@@ -5,14 +5,14 @@ def filter_param_cd(df, code):
     """Return df filtered by approved data
     """
     approved_df = df.copy()
-    
+
     params = [param.strip('_cd') for param in df.columns if param.endswith('_cd')]
-    
-        
+
+
     for param in params:
         #filter out records where param_cd doesn't contain 'A' for approved.
         approved_df[param].where(approved_df[param + '_cd'].str.contains(code), inplace=True)
-    
+
     # drop any rows where all params are nan and return
     return approved_df.dropna(axis=0, how='all', subset=params)
 
@@ -21,15 +21,15 @@ def interp_to_freq(df, freq=15, interp_limit=120, fields=None):
     """
     WARNING: for now this only works on one site at a time,
     Also must review this function further
-    
+
     Args:
         df (DataFrame): a dataframe with a datetime index
         freq (int): frequency in minutes
         interp_limit (int): max time to interpolate over
-        
+
     Returns:
         DataFrame
-        
+
     """
     #XXX assumes multiindex
     df = df.copy()
@@ -40,10 +40,10 @@ def interp_to_freq(df, freq=15, interp_limit=120, fields=None):
     end   = df.index[-1]
     new_index = pd.date_range(start=start, end=end, periods=None, freq=freq_str)
     new_index = new_index.union(df.index)
-    
+
     new_df    = pd.DataFrame(index=new_index)
     new_df    = pd.concat([new_df, df], axis=1)
-    
+
     out_df = new_df.interpolate(method='time',limit=limit).asfreq(freq_str)
     out_df.index.name = 'datetime'
     return out_df
@@ -53,45 +53,45 @@ def interp_to_freq(df, freq=15, interp_limit=120, fields=None):
 #TODO: can we detect the freq in the iv record as opposed to defining it in a param
 def update_Q_w_DQ(iv_df, dv_df, freq=15, Q_col='Discharge', DQ_col='DailyQ'):
     """Fill gaps in an instantaneous discharge record with daily average estimates
-    
+
     Args:
         iv_df (DataFrame): instantaneous discharge record
         dv_df (DataFrame): Average daily discharge record.
         freq (int): frequency of iv record
-    
+
     Returns:
         DataFrame: filled-in discharge record
-        
+
     """
     freq_str = '{}min'.format(freq)
-    
+
     dv_flow    = dv_df.rename(columns={'DailyQ':'Discharge'}) 
     dv_flow    = dv_flow.asfreq(freq).interpolate()
-    
+
     return iv_flow.update(dv_flow, overwrite=False)
 
 def fill_iv_w_dv(iv_df, dv_df, freq='15min', col='00060'):
     """Fill gaps in an instantaneous discharge record with daily average estimates
-    
+
     Args:
         iv_df (DataFrame): instantaneous discharge record
         dv_df (DataFrame): Average daily discharge record.
         freq (int): frequency of iv record
-    
+
     Returns:
         DataFrame: filled-in discharge record
-        
+
     """
     #freq_str = '{}min'.format(freq)
     #double brackets makes this a dataframe
     updating_field    = dv_df[[col]].asfreq(freq).ffill()
-    
+
     return update_merge(iv_df, updating_field, na_only=True)
     #return iv_df
 
 #This function may be deprecated once pandas.update support joins besides left.
 def update_merge(left, right, na_only=False, on=None):
-    """Performs a combination 
+    """Performs a combination
     Args:
     left (DataFrame): original data
     right (DataFrame): updated data
@@ -99,19 +99,19 @@ def update_merge(left, right, na_only=False, on=None):
     """
     df = left.merge(right, how='outer',
                     left_index=True, right_index=True) 
-    
+
     # check for column overlap and resolve update
     for column in df.columns:
         #if duplicated column, use the value from right
         if column[-2:] == '_x':
             name = column[:-2] # find column name
-            
+
             if na_only:
                 df[name] = df[name+'_x'].fillna(df[name+'_y'])
-                
+
             else:
                 df[name] = df[name+'_x'].update(df[name+'_y'])
-        
+
             df.drop([name + '_x', name + '_y'], axis=1, inplace=True)
-            
+
     return df
