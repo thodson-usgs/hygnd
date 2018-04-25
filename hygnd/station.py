@@ -1,4 +1,5 @@
 from hygnd.store import NWISStore
+from hygnd.munge import filter_param_cd
 from data_retrieval import nwis
 
 
@@ -6,9 +7,9 @@ from data_retrieval import nwis
 APPROVED_SERVICE = ['dv','iv']
 
 class Station():
-    """
+    """Class representing a station, which could be a stream gage
+    or any other point-source data.
 
-    TODO: add a function for handling 'all'
     """
     def __init__(self, site_id, store_path):
         self.site_id = site_id
@@ -24,6 +25,13 @@ class Station():
         return self.site_id
 
     def services(self):
+        """List services in local data store
+
+        Returns
+        -------
+            List of services (iv, dv, etc) that are contained in the local
+            data store.
+        """
 
         with NWISStore(self.store_path) as store:
             keys = store.keys()
@@ -35,6 +43,8 @@ class Station():
 
 
     def get(self, service):
+        """Get service belonging to station from local data store.
+        """
 
         group = self._group(service)
 
@@ -50,6 +60,9 @@ class Station():
 
 
     def put(self, service, df):
+        """Put service belonging to station into local data store.
+ 
+        """
         group = self._group(service)
 
         with NWISStore(self.store_path) as store:
@@ -61,6 +74,11 @@ class Station():
 
         Parameters
         ----------
+        service : string
+            Name of service to upgrade. If none, upgrade all existing services.
+
+        approved : boolean
+
 
         TODO: set default approval to True once implemented
         """
@@ -69,23 +87,18 @@ class Station():
             for service in self.services():
                 self.update(service=service, approved=approved)
 
-            #update all recursively
-            pass
+        elif service not in APPROVED_SERVICE:
+            raise TypeError("Unrecognized service")
 
-        elif service in APPROVED_SERVICE and approved == True:
-            self._update_approved(service)
-
-        else:
-            self._update_recent(service)
-
-
-    def _update_recent(self, service):
-        """Update any gets add since last update
-        """
         site = self.id()
         old_df = self.get(service)
 
-        last_time = old_df.iloc[-1].name.strftime('%Y-%m-%d')
+        if approved:
+            last_time = old_df.iloc[0].name.strftime('%Y-%m-%d')
+
+        if not approved:
+            last_time = old_df.iloc[-1].name.strftime('%Y-%m-%d')
+
 
         new_df = nwis.get_record(site, start=last_time, end=None)
         overlap = new_df.index.intersection(old_df.index)
@@ -94,20 +107,6 @@ class Station():
         updated = old_df.append(new_df)
 
         self.put(service, updated)
-
-
-    def _update_approved(self, service):
-        """Updates any approved data
-
-        Parameters
-        ----------
-        service : string
-        """
-        group = self._group(service)
-
-        old_df = self.get(group)
-
-        pass
 
 
     def download(self, service, start=None, end=None):

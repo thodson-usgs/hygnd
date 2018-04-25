@@ -179,46 +179,19 @@ class NWISStore(HGStore):
         #see ptrepack for better compression
         #complevel=9, complib='blosc:blosclz'
 
-    def _update_recent(self, sites):
-        """A simple update function
-        Only gets data since the last punch in the db. Doesn't check if older data
-        was updated
-        """
-        if type(sites) == 'list':
-            print(sites)
-            for site in sites:
-                print(site)
-                self._update_recent(site)
-        else:
-            site = sites #only one site
-            for service in ['iv','dv','qwdata']:
-
-                #print('{} {}'.format(site,service))
-                group = '/site/{}/{}'.format(site,service)
-
-                if group not in self.keys():
-                    break
-
-                print(group)
-                old_df = self.get(group)
-
-                last_time = old_df.iloc[-1].name.strftime('%Y-%m-%d')
-                print(last_time)
-                new_df = get_records(site, start=last_time, end=None)
-                #return new_df, old_df
-                overlap = new_df.index.intersection(old_df.index)
-                old_df.drop(overlap, axis=0)
-                updated = old_df.append(new_df)
-
-                self.put(group, updated, format='fixed')
-
 
     def get_station(station_id):
         return Station(site['id'], self._path)
 
 
     def spinup(self, project_template):
-        """
+        """Download data for all stations specified in project
+
+        Parameters
+        ----------
+        project_template : dict
+            dictionary specifying the organization of stations within the project
+
         TODO: add check to make sure hdf does not already exist
         """
         sites = project_template['sites']
@@ -250,6 +223,10 @@ class NWISStore(HGStore):
 
 
     def update(self, station_id=None, service=None):
+        """Update station object in datastore.
+
+        TODO: add approval parameter
+        """
 
         if all([station_id, service]):
             station = self.get_station(Station(station_id, self._path)
