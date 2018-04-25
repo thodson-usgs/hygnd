@@ -47,8 +47,6 @@ NWIS_codes = [
 
 flag = {code:i**2 for i,code in enumerate(NWIS_codes)}
 
-class Station():
-    pass
 
 class HGStore(pd.HDFStore):
     """
@@ -61,9 +59,10 @@ class HGStore(pd.HDFStore):
 
         paths = [s for s in keys if "site" in s]
 
-        stations = [ s for s in paths.split('/')[1]]
+        stations = [ s.split('/')[2] for s in paths]
 
-        return list(set(stations)
+        return list(set(stations))
+
 
     #def get(self, key):
     #    df = super().get(key)
@@ -159,9 +158,6 @@ class NWISStore(HGStore):
     #add more services
     #should go in a hygndstore XXX testing
 
-    def get_station(self, station_id):
-        pass
-
     def _download_site(self, site, start=None, end=None, service='all'):
 
         if service =='all':
@@ -216,13 +212,28 @@ class NWISStore(HGStore):
 
                 self.put(group, updated, format='fixed')
 
-    def _update_unapproved(self, site):
-        pass
 
-    def _update_since_updated(self,site):
-        """Updates the store since the last update was run
+    def get_station(station_id):
+        return Station(site['id'], self._path)
+
+
+    def spinup(self, project_template):
         """
-        pass
+        TODO: add check to make sure hdf does not already exist
+        """
+        sites = project_template['sites']
+        services = project_template['services']
+
+        for site in sites:
+
+            if verbose:
+                print(site)
+
+            station = self.get_station(site['id'])
+
+            for service in services:
+                station.download(service, start=site['start'])
+
 
     def _spinup_sites(self, sites, service='all', verbose=True):
         """
@@ -237,8 +248,21 @@ class NWISStore(HGStore):
             self._download_site(site['id'], start=site['start'], service=service)
 
 
-    def update(self):
-        #find 
-        self.get(group)
-        pass
+
+    def update(self, station_id=None, service=None):
+
+        if all([station_id, service]):
+            station = self.get_station(Station(station_id, self._path)
+            station.update(service)
+
+        elif station_id:
+            station = Station(station_id, self._path)
+            station.update()
+
+        else:
+            station_ids = self.stations()
+            for station_id in station_ids:
+                station = Station(station_id, self._path)
+                station.update()
+                #get existing services
 
