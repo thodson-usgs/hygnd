@@ -194,17 +194,18 @@ class NWISStore(HGStore):
 
         TODO: add check to make sure hdf does not already exist
         """
-        sites = project_template['sites']
-        services = project_template['services']
+        p = Project(project_template)
 
-        for site in sites:
+        services = p.station_services()
+
+        for site in p.stations(proxies=True):
 
             if verbose:
                 print(site)
 
             station = self.get_station(site['id'])
 
-            for service in services:
+            for service in p.services:
                 station.download(service, start=site['start'])
 
 
