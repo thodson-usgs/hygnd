@@ -3,6 +3,9 @@ from hygnd.stream.nwis import get_records
 from hygnd.munge import interp_to_freq, fill_iv_w_dv, filter_param_cd
 from hygnd.utils.analysis.said import format_constituent_df, format_surrogate_df
 from hygnd.datasets.codes import pn #XXX need to move this into site var
+from hygnd.project import Project
+
+from data_retrieval import nwis
 import numpy as np
 
 SERVICES = ['iv','dv','qwdata','site']
@@ -48,6 +51,145 @@ NWIS_codes = [
 flag = {code:i**2 for i,code in enumerate(NWIS_codes)}
 
 
+#should store this in data_retrievel
+APPROVED_SERVICE = ['dv','iv']
+
+class Station():
+    """Class representing a station, which could be a stream gage
+    or any other point-source data.
+
+    """
+    def __init__(self, site_id, store_path):
+        self.site_id = site_id
+        self.store_path = store_path
+        
+    def _root_dir(self):
+        return '/site/{}/'.format(self.site_id)
+
+    def _group(self, service):
+        return '/site/{}/{}'.format(self.site_id, service)
+
+    def id(self):
+        return self.site_id
+
+    def services(self):
+        """List services in local data store
+
+        Returns
+        -------
+            List of services (iv, dv, etc) that are contained in the local
+            data store.
+        """
+
+        with NWISStore(self.store_path) as store:
+            keys = store.keys()
+            root = self._root_dir()
+
+            services = [s.replace(root,'') for s in keys if root in s]
+
+            return services
+
+
+    def get(self, service):
+        """Get service belonging to station from local data store.
+        """
+
+        group = self._group(service)
+
+        with HGStore(self.store_path) as store:
+
+            try:
+                df = store.get(group)
+
+            except KeyError:
+                return None
+
+        return df
+
+
+    def put(self, service, df):
+        """Put service belonging to station into local data store.
+
+        """
+        if df is None:
+            return
+
+        group = self._group(service)
+
+        with HGStore(self.store_path) as store:
+            store.put(group, df, format='fixed')
+
+
+    def update(self, service=None, approved=False):
+        """Update a service
+
+        Parameters
+        ----------
+        service : string
+            Name of service to upgrade. If none, upgrade all existing services.
+
+        approved : boolean
+
+
+        TODO: set default approval to True once implemented
+        """
+
+        if not service:
+            for service in self.services():
+                self.update(service=service, approved=approved)
+
+        elif service not in APPROVED_SERVICE:
+            raise TypeError("Unrecognized service")
+
+        site = self.id()
+        old_df = self.get(service)
+
+        if approved:
+            last_time = old_df.iloc[0].name.strftime('%Y-%m-%d')
+
+        if not approved:
+            last_time = old_df.iloc[-1].name.strftime('%Y-%m-%d')
+
+
+        new_df = nwis.get_record(site, start=last_time, end=None)
+        overlap = new_df.index.intersection(old_df.index)
+        old_df.drop(overlap, axis=0)
+
+        updated = old_df.append(new_df)
+
+        self.put(service, updated)
+
+
+    def download(self, service, start=None, end=None):
+        """Download
+
+        Parameters
+        ----------
+        service : string
+        start : string
+        end : string
+        """
+        group = self._group(service)
+        df = nwis.get_record(self.site_id, start=start, end=end, service=service)
+
+        self.put(service, df)
+
+
+    def iv(self):
+        return self.get('iv')
+
+
+    def qwdata(self):
+        return self.get('qwdata')
+
+
+    def dv(self):
+        return self.get('dv')
+
+
+    def sur(self):
+        return self.get('sur')
+
 class HGStore(pd.HDFStore):
     """
     """
@@ -63,16 +205,6 @@ class HGStore(pd.HDFStore):
 
         return list(set(stations))
 
-
-    #def get(self, key):
-    #    df = super().get(key)
-    #    return df
-    #    #return df.replace(-999999, np.NaN)
-
-    #def put(self, group, df, format='fixed'):
-    #    #out = df.replace(np.NaN, -999999, inplace=True)
-    #    out = df
-    #    super().put(group, out, format='fixed')
 
 class SAIDStore(HGStore):
     def _prep_site(self, site, verbose=True):
@@ -180,11 +312,11 @@ class NWISStore(HGStore):
         #complevel=9, complib='blosc:blosclz'
 
 
-    def get_station(station_id):
-        return Station(site['id'], self._path)
+    def get_station(self, station_id):
+        return Station(station_id, self._path)
 
 
-    def spinup(self, project_template):
+    def spinup(self, project_template, verbose=False):
         """Download data for all stations specified in project
 
         Parameters
@@ -230,17 +362,15 @@ class NWISStore(HGStore):
         """
 
         if all([station_id, service]):
-            station = self.get_station(Station(station_id, self._path)
+            station = self.get_station(station_id)
             station.update(service)
 
         elif station_id:
-            station = Station(station_id, self._path)
+            station = self.get_station(station_id)
             station.update()
 
         else:
             station_ids = self.stations()
             for station_id in station_ids:
-                station = Station(station_id, self._path)
+                station = self.get_station(station_id)
                 station.update()
-                #get existing services
-

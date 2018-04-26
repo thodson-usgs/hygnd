@@ -25,7 +25,6 @@ class Project:
             json.dump(self.__dict__, f)
 
     def load(self, filename):
-        import pdb; pdb.set_trace()
         with open(filename, 'r') as f:
             self.__dict__ = json.load(f)
 

@@ -61,8 +61,11 @@ class Station():
 
     def put(self, service, df):
         """Put service belonging to station into local data store.
- 
+
         """
+        if df is None:
+            return
+
         group = self._group(service)
 
         with NWISStore(self.store_path) as store:
@@ -120,6 +123,7 @@ class Station():
         """
         group = self._group(service)
         df = nwis.get_record(self.site_id, start=start, end=end, service=service)
+
 
         self.put(service, df)
 
