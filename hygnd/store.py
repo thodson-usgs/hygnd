@@ -62,7 +62,7 @@ class Station():
     def __init__(self, site_id, store_path):
         self.site_id = site_id
         self.store_path = store_path
-        
+
     def _root_dir(self):
         return '/site/{}/'.format(self.site_id)
 
