@@ -2,6 +2,8 @@ import json
 
 class Project:
     """Projects define the organization of a hygnd data store
+
+    # TODO remove reference to proxy sites. That falls outside the perview of hygnd.
     """
 
     def __init__(self, template):

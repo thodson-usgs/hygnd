@@ -63,12 +63,14 @@ def fill_iv_w_dv(iv_df, dv_df, freq='15min', col='00060'):
 
     """
     #double brackets makes this a dataframe
+
+    dv_df.rename(axis='columns',
+                 mapper={'00060_Mean':'00060'},
+                 inplace=True)
+
+
     updating_field = dv_df[[col]].asfreq(freq).ffill()
 
-    updating_field = updating_field.rename(axis='columns',
-                                           mapper={'00060_Mean':'00060'},
-                                           inplace=True
-                                          )
 
     iv_df.update(updating_field, overwrite=False)
     #return update_merge(iv_df, updating_field, na_only=True)
@@ -82,6 +84,8 @@ def update_merge(left, right, na_only=False, on=None):
     left (DataFrame): original data
     right (DataFrame): updated data
     na_only (bool): if True, only update na values
+
+    TODO: na_only
     """
     df = left.merge(right, how='outer',
                     left_index=True, right_index=True)

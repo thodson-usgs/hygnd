@@ -1,5 +1,4 @@
 import pandas as pd
-from hygnd.datasets.codes import pn #XXX need to move this into site var
 from hygnd.project import Project
 
 from data_retrieval import nwis
@@ -19,7 +18,7 @@ class Table():
 
 
     def _group(self, service):
-        return '{}{}',format(self._root_dir(), service)
+        return '{}{}'.format(self._root_dir(), service)
 
 
     def id(self):
@@ -52,7 +51,7 @@ class Table():
 
         group = self._group(service)
 
-        with HGStore(self.store_path) as store:
+        with HGStore(self._store_path) as store:
             store.put(group, df, format='fixed')
 
 
