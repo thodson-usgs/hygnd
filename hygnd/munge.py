@@ -31,7 +31,7 @@ def interp_to_freq(df, freq=15, interp_limit=120, fields=None):
         DataFrame
 
     """
-    #XXX assumes multiindex
+    #XXX assumes no? multiindex
     df = df.copy()
     #df.reset_index(level=0, inplace=True)
     limit = floor(interp_limit/freq)
@@ -50,26 +50,6 @@ def interp_to_freq(df, freq=15, interp_limit=120, fields=None):
     #out_df.set_index('site_no', append=True, inplace=True)
     #return out_df.reorder_levels(['site_no','datetime'])
 
-#TODO: can we detect the freq in the iv record as opposed to defining it in a param
-def update_Q_w_DQ(iv_df, dv_df, freq=15, Q_col='Discharge', DQ_col='DailyQ'):
-    """Fill gaps in an instantaneous discharge record with daily average estimates
-
-    Args:
-        iv_df (DataFrame): instantaneous discharge record
-        dv_df (DataFrame): Average daily discharge record.
-        freq (int): frequency of iv record
-
-    Returns:
-        DataFrame: filled-in discharge record
-
-    """
-    freq_str = '{}min'.format(freq)
-
-    dv_flow    = dv_df.rename(columns={'DailyQ':'Discharge'}) 
-    dv_flow    = dv_flow.asfreq(freq).interpolate()
-
-    return iv_flow.update(dv_flow, overwrite=False)
-
 def fill_iv_w_dv(iv_df, dv_df, freq='15min', col='00060'):
     """Fill gaps in an instantaneous discharge record with daily average estimates
 
@@ -82,12 +62,18 @@ def fill_iv_w_dv(iv_df, dv_df, freq='15min', col='00060'):
         DataFrame: filled-in discharge record
 
     """
-    #freq_str = '{}min'.format(freq)
     #double brackets makes this a dataframe
-    updating_field    = dv_df[[col]].asfreq(freq).ffill()
+    updating_field = dv_df[[col]].asfreq(freq).ffill()
 
-    return update_merge(iv_df, updating_field, na_only=True)
-    #return iv_df
+    updating_field = updating_field.rename(axis='columns',
+                                           mapper={'00060_Mean':'00060'},
+                                           inplace=True
+                                          )
+
+    iv_df.update(updating_field, overwrite=False)
+    #return update_merge(iv_df, updating_field, na_only=True)
+    return iv_df
+
 
 #This function may be deprecated once pandas.update support joins besides left.
 def update_merge(left, right, na_only=False, on=None):
@@ -98,7 +84,7 @@ def update_merge(left, right, na_only=False, on=None):
     na_only (bool): if True, only update na values
     """
     df = left.merge(right, how='outer',
-                    left_index=True, right_index=True) 
+                    left_index=True, right_index=True)
 
     # check for column overlap and resolve update
     for column in df.columns:
