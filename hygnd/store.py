@@ -7,10 +7,10 @@ import numpy as np
 class Table():
     """Class
     """
-    def __init__(self, site_id, service, store_path):
+    def __init__(self, site_id, store_path, root):
         self._id = site_id
         self._store_path = store_path
-        self._root = 'root'
+        self._root = root
 
 
     def _root_dir(self):
@@ -207,6 +207,9 @@ class HGStore(pd.HDFStore):
         stations = [ s.split('/')[2] for s in paths]
 
         return list(set(stations))
+
+    def get_object(self, object_id, root):
+        return Table(object_id, self._path, root)
 
 
 
