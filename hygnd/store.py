@@ -4,8 +4,8 @@ from hygnd.project import Project
 from data_retrieval import nwis
 import numpy as np
 
-class Table():
-    """Class
+class Collection():
+    """Class that contains a collection of documents or dataframes
     """
     def __init__(self, site_id, store_path, root):
         self._id = site_id
@@ -31,7 +31,7 @@ class Table():
 
         group = self._group(service)
 
-        with HGStore(self.store_path) as store:
+        with HGStore(self._store_path) as store:
 
             try:
                 df = store.get(group)
@@ -54,26 +54,23 @@ class Table():
         with HGStore(self._store_path) as store:
             store.put(group, df, format='fixed')
 
+    def remove(self, service):
+        """Remove table from store
+        """
+        group = self._group(service)
 
-class Station():
+        with HGStore(self._store_path) as store:
+            store.remove(group)
+
+
+class Station(Collection):
     """Class representing a station, which could be a stream gage
     or any other point-source data.
-
-    TODO: can inherit most methods from Table
-
     """
     def __init__(self, site_id, store_path):
-        self.site_id = site_id
-        self.store_path = store_path
-
-    def _root_dir(self):
-        return '/site/{}/'.format(self.site_id)
-
-    def _group(self, service):
-        return '/site/{}/{}'.format(self.site_id, service)
-
-    def id(self):
-        return self.site_id
+        self._root = 'site'
+        super().__init__(site_id, store_path, self._root)
+        self._approved_services = ['dv','iv','qwdata','site']
 
     def services(self):
         """List services in local data store
@@ -91,36 +88,6 @@ class Station():
             services = [s.replace(root,'') for s in keys if root in s]
 
             return services
-
-
-    def get(self, service):
-        """Get service belonging to station from local data store.
-        """
-
-        group = self._group(service)
-
-        with HGStore(self.store_path) as store:
-
-            try:
-                df = store.get(group)
-
-            except KeyError:
-                return None
-
-        return df
-
-
-    def put(self, service, df):
-        """Put service belonging to station into local data store.
-
-        """
-        if df is None:
-            return
-
-        group = self._group(service)
-
-        with HGStore(self.store_path) as store:
-            store.put(group, df, format='fixed')
 
 
     def update(self, service=None, approved=False):
@@ -141,8 +108,13 @@ class Station():
             for service in self.services():
                 self.update(service=service, approved=approved)
 
-        elif service not in APPROVED_SERVICE:
+        elif service not in self._approved_services:
             raise TypeError("Unrecognized service")
+
+        elif service == 'site':
+            #site has only one record, so simply update the entire table
+            updated = nwis.get_record(self.id(), service=service)
+            self.put(service, updated)
 
         site = self.id()
         old_df = self.get(service)
@@ -154,7 +126,7 @@ class Station():
             last_time = old_df.iloc[-1].name.strftime('%Y-%m-%d')
 
 
-        new_df = nwis.get_record(site, start=last_time, end=None)
+        new_df = nwis.get_record(site, start=last_time, end=None, service=service)
         overlap = new_df.index.intersection(old_df.index)
         old_df.drop(overlap, axis=0)
 
@@ -173,7 +145,7 @@ class Station():
         end : string
         """
         group = self._group(service)
-        df = nwis.get_record(self.site_id, start=start, end=end, service=service)
+        df = nwis.get_record(self.id(), start=start, end=end, service=service)
 
         self.put(service, df)
 
@@ -209,7 +181,7 @@ class HGStore(pd.HDFStore):
         return list(set(stations))
 
     def get_object(self, object_id, root):
-        return Table(object_id, self._path, root)
+        return Collection(object_id, self._path, root)
 
 
 

@@ -14,7 +14,8 @@ def filter_param_cd(df, code):
         approved_df[param].where(approved_df[param + '_cd'].str.contains(code), inplace=True)
 
     # drop any rows where all params are nan and return
-    return approved_df.dropna(axis=0, how='all', subset=params)
+    #return approved_df.dropna(axis=0, how='all', subset=params)
+    return approved_df
 
 
 def interp_to_freq(df, freq=15, interp_limit=120, fields=None):
@@ -44,7 +45,10 @@ def interp_to_freq(df, freq=15, interp_limit=120, fields=None):
     new_df    = pd.DataFrame(index=new_index)
     new_df    = pd.concat([new_df, df], axis=1)
 
+    #this resampling eould be more efficient
     out_df = new_df.interpolate(method='time',limit=limit).asfreq(freq_str)
+    out_df = out_df.resample('15T').asfreq()
+
     out_df.index.name = 'datetime'
     return out_df
     #out_df.set_index('site_no', append=True, inplace=True)
@@ -68,8 +72,8 @@ def fill_iv_w_dv(iv_df, dv_df, freq='15min', col='00060'):
                  mapper={'00060_Mean':'00060'},
                  inplace=True)
 
-
-    updating_field = dv_df[[col]].asfreq(freq).ffill()
+    #limit ffill to one day or 96 samples at 15min intervals
+    updating_field = dv_df[[col]].asfreq(freq).ffill(limit=96)
 
 
     iv_df.update(updating_field, overwrite=False)
