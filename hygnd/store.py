@@ -81,7 +81,7 @@ class Station(Collection):
             data store.
         """
 
-        with NWISStore(self.store_path) as store:
+        with NWISStore(self._store_path) as store:
             keys = store.keys()
             root = self._root_dir()
 
@@ -116,23 +116,24 @@ class Station(Collection):
             updated = nwis.get_record(self.id(), service=service)
             self.put(service, updated)
 
-        site = self.id()
-        old_df = self.get(service)
+        else:
 
-        if approved:
-            last_time = old_df.iloc[0].name.strftime('%Y-%m-%d')
+            site = self.id()
+            old_df = self.get(service)
 
-        if not approved:
-            last_time = old_df.iloc[-1].name.strftime('%Y-%m-%d')
+            if approved:
+                last_time = old_df.iloc[0].name.strftime('%Y-%m-%d')
+
+            if not approved:
+                last_time = old_df.iloc[-1].name.strftime('%Y-%m-%d')
 
 
-        new_df = nwis.get_record(site, start=last_time, end=None, service=service)
-        overlap = new_df.index.intersection(old_df.index)
-        old_df.drop(overlap, axis=0)
+            new_df = nwis.get_record(site, start=last_time, end=None, service=service)
+            overlap = new_df.index.intersection(old_df.index)
+            old_df.drop(overlap, axis=0)
 
-        updated = old_df.append(new_df)
-
-        self.put(service, updated)
+            updated = old_df.append(new_df)
+            self.put(service, updated)
 
 
     def download(self, service, start=None, end=None):
@@ -222,9 +223,11 @@ class NWISStore(HGStore):
                 print(site)
 
             station = self.get_station(site['id'])
+            start = site.get('start')
+            end = site.get('end')
 
             for service in p.services:
-                station.download(service, start=site['start'])
+                station.download(service, start=start, end=end)
 
 
     def update(self, station_id=None, service=None):
