@@ -45,6 +45,7 @@ def interp_to_freq(df, freq=15, interp_limit=120, fields=None):
     new_df    = pd.DataFrame(index=new_index)
     new_df    = pd.concat([new_df, df], axis=1)
 
+    #new_df = pd.merge(df, new_df, how='outer', left_index=True, right_index=True)
     #this resampling eould be more efficient
     out_df = new_df.interpolate(method='time',limit=limit).asfreq(freq_str)
     out_df = out_df.resample('15T').asfreq()
@@ -93,7 +94,6 @@ def update_merge(left, right, na_only=False, on=None):
     """
     df = left.merge(right, how='outer',
                     left_index=True, right_index=True)
-
     # check for column overlap and resolve update
     for column in df.columns:
         #if duplicated column, use the value from right
@@ -104,7 +104,8 @@ def update_merge(left, right, na_only=False, on=None):
                 df[name] = df[name+'_x'].fillna(df[name+'_y'])
 
             else:
-                df[name] = df[name+'_x'].update(df[name+'_y'])
+                df[name+'_x'].update(df[name+'_y'])
+                df[name] = df[name+'_x']
 
             df.drop([name + '_x', name + '_y'], axis=1, inplace=True)
 

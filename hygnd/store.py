@@ -129,11 +129,13 @@ class Station(Collection):
 
 
             new_df = nwis.get_record(site, start=last_time, end=None, service=service)
-            overlap = new_df.index.intersection(old_df.index)
-            old_df.drop(overlap, axis=0)
 
-            updated = old_df.append(new_df)
-            self.put(service, updated)
+            if new_df is not None:
+                overlap = new_df.index.intersection(old_df.index)
+                old_df.drop(overlap, axis=0)
+
+                updated = old_df.append(new_df)
+                self.put(service, updated)
 
 
     def download(self, service, start=None, end=None):
