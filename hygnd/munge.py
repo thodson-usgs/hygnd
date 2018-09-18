@@ -34,16 +34,18 @@ def interp_to_freq(df, freq=15, interp_limit=120, fields=None):
     """
     #XXX assumes no? multiindex
     df = df.copy()
+    if type(df) == pd.core.series.Series:
+        df = df.to_frame()
     #df.reset_index(level=0, inplace=True)
     limit = floor(interp_limit/freq)
     freq_str = '{}min'.format(freq)
     start = df.index[0]
     end   = df.index[-1]
     new_index = pd.date_range(start=start, end=end, periods=None, freq=freq_str)
-    new_index = new_index.union(df.index)
+    #new_index = new_index.union(df.index)
 
     new_df    = pd.DataFrame(index=new_index)
-    new_df    = pd.concat([new_df, df], axis=1)
+    new_df    = new_df.merge(df, how='outer', left_index=True, right_index=True)
 
     #new_df = pd.merge(df, new_df, how='outer', left_index=True, right_index=True)
     #this resampling eould be more efficient
