@@ -1,10 +1,12 @@
-# hygnd: Hydrologic Gage Network Datamanager
+# hygnd: Hydrologic Gage-Network Data manager
 --------------------------------------------
 
-hygnd ('high ground') is a Python package providing tools for analyzing and manipulating data from the USGS hydrographic gage network.
+hygnd ('high ground') is a Python package for managing data from the USGS hydrographic gage network.
 
-At its core, hygnd is a data management system for surface-water data. It serves as a bridge between web data portals, which house hydrographic data, and common models and python libraries used to analyze and visualize that data.
-As pulling data directly from the web can be time consuming, especially with large national datasets, hygnd provides tools for downloading data to a local HDF data store. There data can be rapidly accessed to provide input for numerical models and visualizations, along with any intermediate data products that are needed for later analysis. Concievably, hygnd could eventually support high-traffic web-based tools, but it would require a heavier-weight multi-user database for the back end.
+At its core, hygnd is a data management system for surface-water data that serves as the bridge between web data portals, which house hydrographic data, and common models and python libraries used to analyze and visualize that data.
+As pulling large datasets directly from the web can be time consuming, hygnd provides tools for downloading and maintaining local copies of online databases, so that the data can be rapidly accessed to provide input for analysis and visualization. 
+Currently, hygnd uses HDF to store data; however, the limitations of that choice were quickly apparent so future versions will also support  mySQL and POSTGRES. The latter has multi-user support and would allow hygnd work as a backend for web-based applications.
 
-hygnd is still in early development and not ready for public consumption. However, feel free to raise an issue if you have a particular use case that
-In addition, I've found the components for retrieving data from the web to be extremely useful in my own workflow. In an effort to make those available as quickly as possible, I've moved those elements to their own project, called data-retrieval, which is a python alternative to the popular R dataRetrieval library that I hope will grow as the next generation of python-trained programmers join the ranks of the USGS.
+hygnd is still in early development and not ready for public consumption. However, feel free to contact me if you, like me, want faster access to environmental data and you're interested in sharing your time, ideas, or funding to the development of this tool.
+
+In addition, I've found the components for retrieving data from the web to be extremely useful in my own workflow. In an effort to make those components available as quickly as possible, I've moved them to their own project, called dataretrieval, which is a python alternative to the popular R dataRetrieval library.
