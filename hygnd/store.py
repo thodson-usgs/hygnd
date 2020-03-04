@@ -1,7 +1,7 @@
 import pandas as pd
 from hygnd.project import Project
 
-from data_retrieval import nwis
+from dataretrieval import nwis
 import numpy as np
 
 class Collection():

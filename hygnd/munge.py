@@ -49,7 +49,7 @@ def interp_to_freq(df, freq=15, interp_limit=120, fields=None):
 
     #new_df = pd.merge(df, new_df, how='outer', left_index=True, right_index=True)
     #this resampling eould be more efficient
-    out_df = new_df.interpolate(method='time',limit=limit).asfreq(freq_str)
+    out_df = new_df.interpolate(method='time',limit=limit, limit_direction='both').asfreq(freq_str)
     out_df = out_df.resample('15T').asfreq()
 
     out_df.index.name = 'datetime'
