@@ -2,6 +2,7 @@ import pandas as pd
 from hygnd.project import Project
 
 from dataretrieval import nwis
+from dataretrieval.utils import NoSitesError
 import numpy as np
 
 class Collection():
@@ -148,9 +149,13 @@ class Station(Collection):
         end : string
         """
         group = self._group(service)
-        df = nwis.get_record(self.id(), start=start, end=end, service=service)
 
-        self.put(service, df)
+        try:
+            df = nwis.get_record(self.id(), start=start, end=end, service=service)
+            self.put(service, df)
+
+        except NoSitesError:
+            print('{} has no data on {}'.format(self.id(), service))
 
 
     def iv(self):
